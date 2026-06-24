@@ -12,6 +12,7 @@ Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 // ---- Produk ----
 Route::prefix('products')->name('products.')->group(function () {
     Route::get('/', [ProductController::class, 'index'])->name('index');
+    Route::get('/export', [ProductController::class, 'export'])->name('export');
     Route::post('/import', [ProductController::class, 'import'])->name('import');
     Route::post('/refine-all', [ProductController::class, 'refineAll'])->name('refineAll');
     Route::post('/regenerate-all-descriptions', [ProductController::class, 'regenerateAllDescriptions'])->name('regenerateAll');
@@ -23,6 +24,7 @@ Route::prefix('products')->name('products.')->group(function () {
 // ---- Kendaraan ----
 Route::prefix('vehicles')->name('vehicles.')->group(function () {
     Route::get('/', [VehicleController::class, 'index'])->name('index');
+    Route::get('/export', [VehicleController::class, 'export'])->name('export');
     Route::post('/import', [VehicleController::class, 'import'])->name('import');
     Route::post('/refine-all', [VehicleController::class, 'refineAll'])->name('refineAll');
     Route::post('/{vehicle}/refine', [VehicleController::class, 'refine'])->name('refine');
@@ -37,3 +39,4 @@ Route::prefix('catalog')->name('catalog.')->group(function () {
 
 // ---- Product Mapping ----
 Route::get('/mappings', [MappingController::class, 'index'])->name('mappings.index');
+Route::get('/mappings/export', [MappingController::class, 'export'])->name('mappings.export');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\ProductsExport;
 use App\Imports\ProductsImport;
 use App\Jobs\RefineProductJob;
 use App\Jobs\RegenerateProductDescriptionJob;
@@ -12,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
 class ProductController extends Controller
@@ -41,6 +43,19 @@ class ProductController extends Controller
         $product->load('mappings.vehicle');
 
         return view('products.show', ['product' => $product]);
+    }
+
+    /**
+     * Download data produk (Excel) - lengkap, mengikuti filter aktif.
+     */
+    public function export(Request $request): BinaryFileResponse
+    {
+        $filters = [
+            'status' => $request->string('status')->toString(),
+            'q' => $request->string('q')->toString(),
+        ];
+
+        return Excel::download(new ProductsExport($filters), 'produk-'.now()->format('Ymd-His').'.xlsx');
     }
 
     public function import(Request $request): RedirectResponse
@@ -126,11 +141,12 @@ class ProductController extends Controller
         }
 
         $ids = Product::whereIn('refine_status', [Product::STATUS_RAW, Product::STATUS_FAILED])->pluck('id');
-        foreach ($ids as $id) {
-            RefineProductJob::dispatch($id);
+        $delay = (int) config('vertex.bulk_delay_seconds', 5);
+        foreach ($ids as $i => $id) {
+            RefineProductJob::dispatch($id)->delay(now()->addSeconds($i * $delay));
         }
 
-        return back()->with('success', "Mengantrekan {$ids->count()} produk untuk di-refine AI. Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
+        return back()->with('success', "Mengantrekan {$ids->count()} produk untuk di-refine AI (jeda {$delay} detik antar proses). Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
     }
 
     /**
@@ -143,10 +159,11 @@ class ProductController extends Controller
         }
 
         $ids = Product::pluck('id');
-        foreach ($ids as $id) {
-            RegenerateProductDescriptionJob::dispatch($id);
+        $delay = (int) config('vertex.bulk_delay_seconds', 5);
+        foreach ($ids as $i => $id) {
+            RegenerateProductDescriptionJob::dispatch($id)->delay(now()->addSeconds($i * $delay));
         }
 
-        return back()->with('success', "Mengantrekan {$ids->count()} deskripsi produk. Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
+        return back()->with('success', "Mengantrekan {$ids->count()} deskripsi produk (jeda {$delay} detik antar proses). Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
     }
 }

@@ -37,6 +37,10 @@ return [
     // Timeout (detik) untuk panggilan HTTP ke Vertex AI.
     'timeout' => (int) env('VERTEX_TIMEOUT', 180),
 
+    // Jeda (detik) antar pemanggilan AI pada proses massal (antrian) agar tidak
+    // menabrak limit RPM/TPM platform. Job ke-n dijadwalkan n * delay detik.
+    'bulk_delay_seconds' => (int) env('VERTEX_BULK_DELAY_SECONDS', 5),
+
     // Safety settings diset OFF sesuai contoh curl.
     'safety_settings' => [
         ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'OFF'],

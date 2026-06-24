@@ -91,10 +91,11 @@ class CatalogController extends Controller
         }
 
         $ids = Product::pluck('id');
-        foreach ($ids as $id) {
-            MapProductToVehiclesJob::dispatch($id, $batch->id);
+        $delay = (int) config('vertex.bulk_delay_seconds', 5);
+        foreach ($ids as $i => $id) {
+            MapProductToVehiclesJob::dispatch($id, $batch->id)->delay(now()->addSeconds($i * $delay));
         }
 
-        return back()->with('success', "Mengantrekan auto-mapping untuk {$ids->count()} produk. Jalankan 'php artisan queue:work'.");
+        return back()->with('success', "Mengantrekan auto-mapping untuk {$ids->count()} produk (jeda {$delay} detik antar proses). Pastikan worker antrian berjalan: php artisan queue:work.");
     }
 }
