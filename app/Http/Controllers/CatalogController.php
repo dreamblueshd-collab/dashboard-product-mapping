@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\IndexCatalogJob;
 use App\Jobs\MapProductToVehiclesJob;
 use App\Models\ImportBatch;
 use App\Models\Product;
 use App\Services\AiRefinementService;
+use App\Services\CatalogRagService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -18,6 +20,7 @@ class CatalogController extends Controller
     public function index(): View
     {
         $batches = ImportBatch::where('type', ImportBatch::TYPE_CATALOG)
+            ->withCount('chunks')
             ->latest()
             ->get();
 
@@ -75,6 +78,23 @@ class CatalogController extends Controller
             return redirect()->route('catalog.index')
                 ->with('error', 'Gagal memproses PDF: '.$e->getMessage());
         }
+    }
+
+    /**
+     * Index katalog untuk RAG (chunk + embedding).
+     */
+    public function indexRag(ImportBatch $batch, CatalogRagService $rag): RedirectResponse
+    {
+        if (! $rag->isConfigured()) {
+            return back()->with('error', 'VERTEX_API_KEY belum diisi di .env.');
+        }
+        if ($batch->type !== ImportBatch::TYPE_CATALOG) {
+            return back()->with('error', 'Batch ini bukan katalog.');
+        }
+
+        IndexCatalogJob::dispatch($batch->id);
+
+        return back()->with('success', 'Index RAG katalog diantrekan (chunk + embedding). Pastikan worker antrian berjalan: php artisan queue:work.');
     }
 
     /**

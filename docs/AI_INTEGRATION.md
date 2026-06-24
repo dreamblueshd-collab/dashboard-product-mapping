@@ -81,3 +81,62 @@ pembungkus markdown ```json```):
   lalu di-parse manual (bukan via `responseMimeType`).
 - Sesuaikan `VERTEX_MODEL_ID`/`VERTEX_API_ENDPOINT` bila project Anda memakai
   region atau model berbeda.
+
+
+## RAG Katalog (Embedding + Reranker)
+
+Katalog PDF dapat dijadikan **knowledge base** dengan alur RAG:
+
+```
+PDF -> ekstrak teks (smalot/pdfparser) -> CHUNKING (per ~kata + overlap)
+    -> EMBEDDING tiap chunk (Gemini) -> simpan ke tabel catalog_chunks (embedding = JSON)
+Produk -> query (nama+spesifikasi) -> EMBED query -> RETRIEVAL top-K (cosine di PHP)
+       -> RERANK top-N (LLM Gemini) -> konteks untuk prompt auto-mapping
+```
+
+### Endpoint embedding
+
+```
+POST https://{VERTEX_API_ENDPOINT}/{VERTEX_API_VERSION}/publishers/google/models/{VERTEX_EMBED_MODEL}:{VERTEX_EMBED_API}?key={VERTEX_API_KEY}
+```
+
+Body (embedContent):
+
+```json
+{
+  "model": "publishers/google/models/gemini-embedding-001",
+  "content": { "parts": [{ "text": "..." }] },
+  "outputDimensionality": 768,
+  "taskType": "RETRIEVAL_DOCUMENT"
+}
+```
+
+Parsing respons dibuat fleksibel: mendukung `embedding.values`,
+`embeddings[0].values`, dan `predictions[0].embeddings.values`.
+
+### Konfigurasi (`.env`)
+
+| Variabel | Default | Keterangan |
+|---|---|---|
+| `VERTEX_EMBED_MODEL` | `gemini-embedding-001` | model embedding |
+| `VERTEX_EMBED_API` | `embedContent` | method REST |
+| `VERTEX_EMBED_DIMENSIONS` | `768` | dimensi keluaran (kosong = default model) |
+| `VERTEX_EMBED_DELAY_MS` | `250` | jeda antar panggilan embedding saat index |
+| `VERTEX_RAG_CHUNK_WORDS` | `220` | ukuran chunk (kata) |
+| `VERTEX_RAG_CHUNK_OVERLAP` | `40` | overlap antar chunk (kata) |
+| `VERTEX_RAG_TOP_K` | `12` | kandidat hasil retrieval (cosine) |
+| `VERTEX_RAG_TOP_N` | `5` | kandidat akhir setelah rerank |
+| `VERTEX_RAG_RERANK_ENABLED` | `true` | rerank pakai LLM Gemini |
+
+### Reranker
+
+Reranker memakai **LLM Gemini** (`generateContent`) yang mengembalikan urutan indeks
+paling relevan (portabel, tidak bergantung pada Ranking API terpisah). Bila rerank
+gagal, sistem memakai urutan skor cosine.
+
+### Komponen kode
+
+- `VertexAiService::embed()` — panggilan `:embedContent`.
+- `CatalogRagService` — `indexCatalog()`, `retrieve()` (cosine), `rerank()` (LLM), `buildContextForProduct()`.
+- `IndexCatalogJob` — index katalog (chunk + embedding) via antrian.
+- `MapProductToVehiclesJob` — memakai konteks RAG; fallback ke teks katalog penuh bila katalog belum di-index.

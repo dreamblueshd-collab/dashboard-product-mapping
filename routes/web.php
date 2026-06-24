@@ -34,6 +34,7 @@ Route::prefix('vehicles')->name('vehicles.')->group(function () {
 Route::prefix('catalog')->name('catalog.')->group(function () {
     Route::get('/', [CatalogController::class, 'index'])->name('index');
     Route::post('/import', [CatalogController::class, 'import'])->name('import');
+    Route::post('/{batch}/index-rag', [CatalogController::class, 'indexRag'])->name('indexRag');
     Route::post('/{batch}/generate-mappings', [CatalogController::class, 'generateMappings'])->name('generateMappings');
 });
 

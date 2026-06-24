@@ -26,6 +26,80 @@ class VertexAiService
     }
 
     /**
+     * Hasilkan embedding vektor untuk sebuah teks.
+     *
+     * Memanggil endpoint :embedContent dengan API key. Parsing dibuat fleksibel
+     * untuk mengakomodasi beberapa bentuk respons (embedContent vs predict).
+     *
+     * @param  string  $taskType  mis. RETRIEVAL_DOCUMENT | RETRIEVAL_QUERY
+     * @return array<int, float>
+     */
+    public function embed(string $text, ?string $taskType = null): array
+    {
+        if (! $this->isConfigured()) {
+            throw new VertexAiException('VERTEX_API_KEY belum diisi di .env. Fitur embedding tidak dapat digunakan.');
+        }
+
+        $model = config('vertex.embedding.model');
+
+        $payload = [
+            'model' => 'publishers/google/models/'.$model,
+            'content' => [
+                'parts' => [['text' => $text]],
+            ],
+        ];
+
+        $dimensions = config('vertex.embedding.dimensions');
+        if (! empty($dimensions)) {
+            $payload['outputDimensionality'] = (int) $dimensions;
+        }
+        if ($taskType) {
+            $payload['taskType'] = $taskType;
+        }
+
+        $url = sprintf(
+            'https://%s/%s/publishers/google/models/%s:%s',
+            config('vertex.endpoint'),
+            config('vertex.api_version'),
+            $model,
+            config('vertex.embedding.api'),
+        );
+
+        $response = Http::timeout((int) config('vertex.timeout', 180))
+            ->withHeaders(['Content-Type' => 'application/json'])
+            ->withQueryParameters(['key' => config('vertex.api_key')])
+            ->post($url, $payload);
+
+        if ($response->failed()) {
+            Log::error('Vertex AI embedding gagal', [
+                'status' => $response->status(),
+                'body' => mb_substr($response->body(), 0, 1000),
+            ]);
+
+            throw new VertexAiException(
+                'Panggilan embedding gagal (HTTP '.$response->status().'): '.mb_substr($response->body(), 0, 300)
+            );
+        }
+
+        $json = $response->json() ?? [];
+
+        // Bentuk respons yang mungkin:
+        //  embedContent: { embedding: { values: [...] } }
+        //  batch/predict: { embeddings: [{ values: [...] }] } / { predictions: [{ embeddings: { values: [...] } }] }
+        $values = data_get($json, 'embedding.values')
+            ?? data_get($json, 'embedding.value')
+            ?? data_get($json, 'embeddings.0.values')
+            ?? data_get($json, 'predictions.0.embeddings.values')
+            ?? data_get($json, 'predictions.0.embeddings.0.values');
+
+        if (! is_array($values) || $values === []) {
+            throw new VertexAiException('Respons embedding tidak berisi vektor yang dikenali.');
+        }
+
+        return array_map('floatval', $values);
+    }
+
+    /**
      * Panggilan generateContent level rendah.
      *
      * @param  array<int, array<string, mixed>>  $parts  Daftar part, mis. [['text' => '...']]
