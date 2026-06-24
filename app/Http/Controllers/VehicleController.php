@@ -98,7 +98,7 @@ class VehicleController extends Controller
 
         // Batasi default agar tidak mengantre ribuan baris sekaligus tanpa sengaja.
         $limit = (int) $request->integer('limit', 200);
-        $ids = Vehicle::where('refine_status', Vehicle::STATUS_RAW)
+        $ids = Vehicle::whereIn('refine_status', [Vehicle::STATUS_RAW, Vehicle::STATUS_FAILED])
             ->limit($limit)
             ->pluck('id');
 
@@ -106,6 +106,6 @@ class VehicleController extends Controller
             RefineVehicleJob::dispatch($id);
         }
 
-        return back()->with('success', "Mengantrekan {$ids->count()} kendaraan untuk di-refine AI. Jalankan 'php artisan queue:work'.");
+        return back()->with('success', "Mengantrekan {$ids->count()} kendaraan untuk di-refine AI. Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
     }
 }

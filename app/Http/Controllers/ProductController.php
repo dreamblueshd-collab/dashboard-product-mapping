@@ -117,7 +117,7 @@ class ProductController extends Controller
     }
 
     /**
-     * Refine semua produk berstatus raw via queue.
+     * Refine semua produk yang belum berhasil (status raw atau failed) via queue.
      */
     public function refineAll(AiRefinementService $ai): RedirectResponse
     {
@@ -125,12 +125,12 @@ class ProductController extends Controller
             return back()->with('error', 'VERTEX_API_KEY belum diisi di .env.');
         }
 
-        $ids = Product::where('refine_status', Product::STATUS_RAW)->pluck('id');
+        $ids = Product::whereIn('refine_status', [Product::STATUS_RAW, Product::STATUS_FAILED])->pluck('id');
         foreach ($ids as $id) {
             RefineProductJob::dispatch($id);
         }
 
-        return back()->with('success', "Mengantrekan {$ids->count()} produk untuk di-refine AI. Jalankan 'php artisan queue:work'.");
+        return back()->with('success', "Mengantrekan {$ids->count()} produk untuk di-refine AI. Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
     }
 
     /**
@@ -147,6 +147,6 @@ class ProductController extends Controller
             RegenerateProductDescriptionJob::dispatch($id);
         }
 
-        return back()->with('success', "Mengantrekan {$ids->count()} deskripsi produk. Jalankan 'php artisan queue:work'.");
+        return back()->with('success', "Mengantrekan {$ids->count()} deskripsi produk. Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
     }
 }
