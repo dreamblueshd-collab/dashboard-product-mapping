@@ -47,7 +47,14 @@ return [
     |--------------------------------------------------------------------------
     */
     'embedding' => [
-        // Model embedding Gemini (configurable; mis. gemini-embedding-001 / text-embedding-004).
+        // Embedding via API key TIDAK tersedia di Vertex AI express mode
+        // (aiplatform.*.rep.googleapis.com hanya punya generateContent).
+        // Gunakan Gemini API (generativelanguage.googleapis.com) untuk embedding.
+        'endpoint' => env('VERTEX_EMBED_ENDPOINT', 'generativelanguage.googleapis.com'),
+        'api_version' => env('VERTEX_EMBED_API_VERSION', 'v1beta'),
+        // API key khusus embedding (boleh beda dgn key utama). Kosong = pakai VERTEX_API_KEY.
+        'api_key' => env('VERTEX_EMBED_API_KEY', ''),
+        // Model embedding Gemini (mis. gemini-embedding-001 / text-embedding-004).
         'model' => env('VERTEX_EMBED_MODEL', 'gemini-embedding-001'),
         // Method REST untuk embedding (umumnya embedContent).
         'api' => env('VERTEX_EMBED_API', 'embedContent'),

@@ -96,15 +96,20 @@ Produk -> query (nama+spesifikasi) -> EMBED query -> RETRIEVAL top-K (cosine di 
 
 ### Endpoint embedding
 
+> **Penting:** Vertex AI **express mode** (`aiplatform.*.rep.googleapis.com` + API key)
+> **tidak** menyediakan `embedContent`/`predict` — hanya `generateContent`. Maka embedding
+> via API key memakai **Gemini API** (`generativelanguage.googleapis.com`), dikonfigurasi
+> terpisah dari `generateContent`.
+
 ```
-POST https://{VERTEX_API_ENDPOINT}/{VERTEX_API_VERSION}/publishers/google/models/{VERTEX_EMBED_MODEL}:{VERTEX_EMBED_API}?key={VERTEX_API_KEY}
+POST https://{VERTEX_EMBED_ENDPOINT}/{VERTEX_EMBED_API_VERSION}/models/{VERTEX_EMBED_MODEL}:{VERTEX_EMBED_API}?key={VERTEX_EMBED_API_KEY|VERTEX_API_KEY}
 ```
 
 Body (embedContent):
 
 ```json
 {
-  "model": "publishers/google/models/gemini-embedding-001",
+  "model": "models/gemini-embedding-001",
   "content": { "parts": [{ "text": "..." }] },
   "outputDimensionality": 768,
   "taskType": "RETRIEVAL_DOCUMENT"
@@ -118,6 +123,9 @@ Parsing respons dibuat fleksibel: mendukung `embedding.values`,
 
 | Variabel | Default | Keterangan |
 |---|---|---|
+| `VERTEX_EMBED_ENDPOINT` | `generativelanguage.googleapis.com` | host embedding (Gemini API) |
+| `VERTEX_EMBED_API_VERSION` | `v1beta` | versi API embedding |
+| `VERTEX_EMBED_API_KEY` | _(kosong)_ | key embedding; kosong = pakai `VERTEX_API_KEY` |
 | `VERTEX_EMBED_MODEL` | `gemini-embedding-001` | model embedding |
 | `VERTEX_EMBED_API` | `embedContent` | method REST |
 | `VERTEX_EMBED_DIMENSIONS` | `768` | dimensi keluaran (kosong = default model) |

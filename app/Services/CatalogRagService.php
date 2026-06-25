@@ -24,7 +24,7 @@ class CatalogRagService
 
     public function isConfigured(): bool
     {
-        return $this->vertex->isConfigured();
+        return $this->vertex->isEmbeddingConfigured();
     }
 
     /**
