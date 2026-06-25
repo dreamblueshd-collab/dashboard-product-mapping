@@ -96,45 +96,56 @@ Produk -> query (nama+spesifikasi) -> EMBED query -> RETRIEVAL top-K (cosine di 
 
 ### Endpoint embedding
 
-> **Penting:** Vertex AI **express mode** (`aiplatform.*.rep.googleapis.com` + API key)
-> **tidak** menyediakan `embedContent`/`predict` — hanya `generateContent`. Maka embedding
-> via API key memakai **Gemini API** (`generativelanguage.googleapis.com`), dikonfigurasi
-> terpisah dari `generateContent`.
+Embedding mendukung **2 provider** (config `vertex.embedding.provider`):
+
+**1. `vertex` (default) — `gemini-embedding-2`, MULTIMODAL.** Per [dok resmi Google](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/embeddings/get-multimodal-embeddings),
+butuh **project + location** dan **OAuth Bearer token** (bukan API key):
 
 ```
-POST https://{VERTEX_EMBED_ENDPOINT}/{VERTEX_EMBED_API_VERSION}/models/{VERTEX_EMBED_MODEL}:{VERTEX_EMBED_API}?key={VERTEX_EMBED_API_KEY|VERTEX_API_KEY}
+POST https://{ENDPOINT}/{VERSION}/projects/{PROJECT}/locations/{LOCATION}/publishers/google/models/gemini-embedding-2:embedContent
+Authorization: Bearer <access_token>
 ```
-
-Body (embedContent):
-
+Body:
 ```json
-{
-  "model": "models/gemini-embedding-001",
-  "content": { "parts": [{ "text": "..." }] },
-  "outputDimensionality": 768,
-  "taskType": "RETRIEVAL_DOCUMENT"
-}
+{ "content": { "parts": [{ "text": "title: none | text: ..." }] }, "output_dimensionality": 1536 }
 ```
 
-Parsing respons dibuat fleksibel: mendukung `embedding.values`,
-`embeddings[0].values`, dan `predictions[0].embeddings.values`.
+**2. `gemini_api` — `gemini-embedding-001`, teks saja, via API key** (`generativelanguage.googleapis.com`):
+```
+POST https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=API_KEY
+```
+
+> Catatan: Vertex AI **express mode** (`aiplatform.*.rep.googleapis.com` + API key) **tidak**
+> punya `embedContent`. Untuk API key murni, pakai provider `gemini_api`.
+
+**Task instruction (gemini-embedding-2):** dokumen diformat `title: none | text: {konten}`,
+query diformat `task: search result | query: {kueri}` (otomatis di `CatalogRagService`).
+
+Parsing respons fleksibel: `embedding.values`, `embeddings[0].values`, `predictions[0].textEmbedding`.
 
 ### Konfigurasi (`.env`)
 
 | Variabel | Default | Keterangan |
 |---|---|---|
-| `VERTEX_EMBED_ENDPOINT` | `generativelanguage.googleapis.com` | host embedding (Gemini API) |
-| `VERTEX_EMBED_API_VERSION` | `v1beta` | versi API embedding |
-| `VERTEX_EMBED_API_KEY` | _(kosong)_ | key embedding; kosong = pakai `VERTEX_API_KEY` |
-| `VERTEX_EMBED_MODEL` | `gemini-embedding-001` | model embedding |
-| `VERTEX_EMBED_API` | `embedContent` | method REST |
-| `VERTEX_EMBED_DIMENSIONS` | `768` | dimensi keluaran (kosong = default model) |
+| `VERTEX_EMBED_PROVIDER` | `vertex` | `vertex` (gemini-embedding-2) atau `gemini_api` |
+| `VERTEX_EMBED_ENDPOINT` | `aiplatform.us.rep.googleapis.com` | host embedding |
+| `VERTEX_EMBED_API_VERSION` | `v1` | versi API |
+| `VERTEX_EMBED_LOCATION` | `us` | region (provider vertex) |
+| `VERTEX_EMBED_PROJECT_ID` | _(kosong)_ | project id (provider vertex) |
+| `VERTEX_EMBED_AUTH` | `bearer` | `bearer` (OAuth) atau `api_key` |
+| `VERTEX_EMBED_ACCESS_TOKEN` | _(kosong)_ | OAuth token (`gcloud auth print-access-token`) |
+| `VERTEX_EMBED_API_KEY` | _(kosong)_ | API key (mode api_key); kosong = pakai `VERTEX_API_KEY` |
+| `VERTEX_EMBED_MODEL` | `gemini-embedding-2` | model embedding |
+| `VERTEX_EMBED_DIMENSIONS` | `1536` | dimensi (128..3072 utk gemini-embedding-2) |
 | `VERTEX_EMBED_DELAY_MS` | `250` | jeda antar panggilan embedding saat index |
 | `VERTEX_RAG_CHUNK_WORDS` | `220` | ukuran chunk (kata) |
 | `VERTEX_RAG_CHUNK_OVERLAP` | `40` | overlap antar chunk (kata) |
 | `VERTEX_RAG_TOP_K` | `12` | kandidat hasil retrieval (cosine) |
 | `VERTEX_RAG_TOP_N` | `5` | kandidat akhir setelah rerank |
 | `VERTEX_RAG_RERANK_ENABLED` | `true` | rerank pakai LLM Gemini |
+
+> **Penting:** mengganti model/dimensi embedding membuat vektor lama tidak kompatibel.
+> Lakukan **Re-index RAG** pada tiap katalog setelah mengubahnya.
 
 ### Reranker
 

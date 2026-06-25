@@ -47,19 +47,29 @@ return [
     |--------------------------------------------------------------------------
     */
     'embedding' => [
-        // Embedding via API key TIDAK tersedia di Vertex AI express mode
-        // (aiplatform.*.rep.googleapis.com hanya punya generateContent).
-        // Gunakan Gemini API (generativelanguage.googleapis.com) untuk embedding.
-        'endpoint' => env('VERTEX_EMBED_ENDPOINT', 'generativelanguage.googleapis.com'),
-        'api_version' => env('VERTEX_EMBED_API_VERSION', 'v1beta'),
-        // API key khusus embedding (boleh beda dgn key utama). Kosong = pakai VERTEX_API_KEY.
+        // Provider embedding:
+        //   'vertex'     -> Vertex AI (mendukung gemini-embedding-2 MULTIMODAL).
+        //                   Sesuai dok resmi: butuh project+location & OAuth Bearer token.
+        //   'gemini_api' -> generativelanguage.googleapis.com (text saja, mis. gemini-embedding-001) via API key.
+        'provider' => env('VERTEX_EMBED_PROVIDER', 'vertex'),
+
+        'endpoint' => env('VERTEX_EMBED_ENDPOINT', 'aiplatform.us.rep.googleapis.com'),
+        'api_version' => env('VERTEX_EMBED_API_VERSION', 'v1'),
+        'location' => env('VERTEX_EMBED_LOCATION', 'us'),
+        'project_id' => env('VERTEX_EMBED_PROJECT_ID', ''),
+
+        // Autentikasi: 'bearer' (OAuth access token; sesuai dok gemini-embedding-2)
+        //              atau 'api_key' (query ?key=, utk Gemini API / express mode).
+        'auth' => env('VERTEX_EMBED_AUTH', 'bearer'),
         'api_key' => env('VERTEX_EMBED_API_KEY', ''),
-        // Model embedding Gemini (mis. gemini-embedding-001 / text-embedding-004).
-        'model' => env('VERTEX_EMBED_MODEL', 'gemini-embedding-001'),
-        // Method REST untuk embedding (umumnya embedContent).
+        // Access token OAuth (mis. hasil `gcloud auth print-access-token`). Berlaku ~1 jam.
+        'access_token' => env('VERTEX_EMBED_ACCESS_TOKEN', ''),
+
+        // Model embedding. gemini-embedding-2 = multimodal (text/image/dokumen/audio/video).
+        'model' => env('VERTEX_EMBED_MODEL', 'gemini-embedding-2'),
         'api' => env('VERTEX_EMBED_API', 'embedContent'),
-        // Dimensi keluaran (kosongkan = default model). 768 = hemat storage & cukup baik.
-        'dimensions' => env('VERTEX_EMBED_DIMENSIONS', 768),
+        // Dimensi keluaran. gemini-embedding-2: 128..3072 (rekomendasi 768/1536/3072).
+        'dimensions' => env('VERTEX_EMBED_DIMENSIONS', 1536),
         // Jeda (milidetik) antar panggilan embedding saat index katalog (rate limit).
         'delay_ms' => (int) env('VERTEX_EMBED_DELAY_MS', 250),
     ],

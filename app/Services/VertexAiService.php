@@ -26,63 +26,92 @@ class VertexAiService
     }
 
     /**
-     * Apakah API key untuk embedding sudah tersedia (embed key atau key utama).
+     * Apakah konfigurasi embedding sudah siap (sesuai mode auth-nya).
      */
     public function isEmbeddingConfigured(): bool
     {
-        return ! empty(config('vertex.embedding.api_key')) || ! empty(config('vertex.api_key'));
+        $auth = config('vertex.embedding.auth', 'bearer');
+        if ($auth === 'api_key') {
+            return ! empty(config('vertex.embedding.api_key')) || ! empty(config('vertex.api_key'));
+        }
+
+        return ! empty(config('vertex.embedding.access_token'));
     }
 
     /**
-     * Hasilkan embedding vektor untuk sebuah teks.
+     * Hasilkan embedding vektor untuk sebuah input.
      *
-     * Memanggil endpoint :embedContent dengan API key. Parsing dibuat fleksibel
-     * untuk mengakomodasi beberapa bentuk respons (embedContent vs predict).
+     * Mendukung dua provider (lihat config/vertex.php > embedding.provider):
+     *   - 'vertex'     : Vertex AI (gemini-embedding-2 multimodal). Body { content: { parts: [...] } }.
+     *                    URL pakai project+location bila project_id diisi; auth Bearer/API key.
+     *   - 'gemini_api' : generativelanguage.googleapis.com (text). Body { model, content, ... }.
      *
-     * @param  string  $taskType  mis. RETRIEVAL_DOCUMENT | RETRIEVAL_QUERY
+     * Parsing respons dibuat fleksibel untuk berbagai bentuk (embedContent vs predict).
+     *
+     * @param  string  $taskType  mis. RETRIEVAL_DOCUMENT | RETRIEVAL_QUERY (dipakai gemini_api)
      * @return array<int, float>
      */
     public function embed(string $text, ?string $taskType = null): array
     {
-        $apiKey = config('vertex.embedding.api_key') ?: config('vertex.api_key');
-        if (empty($apiKey)) {
-            throw new VertexAiException('API key embedding belum diisi (VERTEX_EMBED_API_KEY atau VERTEX_API_KEY) di .env.');
+        $cfg = config('vertex.embedding');
+        $provider = $cfg['provider'] ?? 'vertex';
+        $model = $cfg['model'];
+        $auth = $cfg['auth'] ?? 'bearer';
+        $dimensions = $cfg['dimensions'] ?? null;
+
+        // ---- Bangun URL ----
+        if ($provider === 'gemini_api') {
+            $url = sprintf('https://%s/%s/models/%s:%s', $cfg['endpoint'], $cfg['api_version'], $model, $cfg['api']);
+        } elseif (! empty($cfg['project_id'])) {
+            $url = sprintf(
+                'https://%s/%s/projects/%s/locations/%s/publishers/google/models/%s:%s',
+                $cfg['endpoint'], $cfg['api_version'], $cfg['project_id'], $cfg['location'], $model, $cfg['api']
+            );
+        } else {
+            $url = sprintf('https://%s/%s/publishers/google/models/%s:%s', $cfg['endpoint'], $cfg['api_version'], $model, $cfg['api']);
         }
 
-        $model = config('vertex.embedding.model');
-
-        // Format Gemini API (generativelanguage): field model = "models/{model}".
-        $payload = [
-            'model' => 'models/'.$model,
-            'content' => [
-                'parts' => [['text' => $text]],
-            ],
-        ];
-
-        $dimensions = config('vertex.embedding.dimensions');
-        if (! empty($dimensions)) {
-            $payload['outputDimensionality'] = (int) $dimensions;
+        // ---- Bangun body ----
+        if ($provider === 'gemini_api') {
+            $payload = [
+                'model' => 'models/'.$model,
+                'content' => ['parts' => [['text' => $text]]],
+            ];
+            if (! empty($dimensions)) {
+                $payload['outputDimensionality'] = (int) $dimensions;
+            }
+            if ($taskType) {
+                $payload['taskType'] = $taskType;
+            }
+        } else {
+            // Vertex AI gemini-embedding-2 (multimodal). Format: content.parts[].
+            $payload = [
+                'content' => ['parts' => [['text' => $text]]],
+            ];
+            if (! empty($dimensions)) {
+                $payload['output_dimensionality'] = (int) $dimensions;
+            }
         }
-        if ($taskType) {
-            $payload['taskType'] = $taskType;
+
+        // ---- HTTP + auth ----
+        $http = Http::timeout((int) config('vertex.timeout', 180))
+            ->withHeaders(['Content-Type' => 'application/json']);
+
+        if ($auth === 'api_key') {
+            $apiKey = $cfg['api_key'] ?: config('vertex.api_key');
+            if (empty($apiKey)) {
+                throw new VertexAiException('API key embedding belum diisi (VERTEX_EMBED_API_KEY atau VERTEX_API_KEY).');
+            }
+            $http = $http->withQueryParameters(['key' => $apiKey]);
+        } else {
+            $token = $cfg['access_token'] ?? '';
+            if (empty($token)) {
+                throw new VertexAiException('VERTEX_EMBED_ACCESS_TOKEN kosong. gemini-embedding-2 butuh OAuth Bearer token (mis. `gcloud auth print-access-token`).');
+            }
+            $http = $http->withToken($token);
         }
 
-        // Catatan: endpoint Vertex AI "express mode" (aiplatform.*.rep.googleapis.com)
-        // TIDAK menyediakan embedContent/predict. Embedding via API key tersedia di
-        // Gemini API (generativelanguage.googleapis.com), sehingga host/versi embedding
-        // dikonfigurasi terpisah dari generateContent.
-        $url = sprintf(
-            'https://%s/%s/models/%s:%s',
-            config('vertex.embedding.endpoint'),
-            config('vertex.embedding.api_version'),
-            $model,
-            config('vertex.embedding.api'),
-        );
-
-        $response = Http::timeout((int) config('vertex.timeout', 180))
-            ->withHeaders(['Content-Type' => 'application/json'])
-            ->withQueryParameters(['key' => $apiKey])
-            ->post($url, $payload);
+        $response = $http->post($url, $payload);
 
         if ($response->failed()) {
             Log::error('Vertex AI embedding gagal', [
@@ -98,13 +127,15 @@ class VertexAiService
         $json = $response->json() ?? [];
 
         // Bentuk respons yang mungkin:
-        //  embedContent: { embedding: { values: [...] } }
-        //  batch/predict: { embeddings: [{ values: [...] }] } / { predictions: [{ embeddings: { values: [...] } }] }
+        //  embedContent (Gemini API)      : { embedding: { values: [...] } }
+        //  embedContent (Vertex emb-2)    : { embeddings: [{ values: [...] }] }
+        //  predict (multimodalembedding)  : { predictions: [{ textEmbedding: [...] }] }
         $values = data_get($json, 'embedding.values')
-            ?? data_get($json, 'embedding.value')
             ?? data_get($json, 'embeddings.0.values')
+            ?? data_get($json, 'embedding.value')
             ?? data_get($json, 'predictions.0.embeddings.values')
-            ?? data_get($json, 'predictions.0.embeddings.0.values');
+            ?? data_get($json, 'predictions.0.embeddings.0.values')
+            ?? data_get($json, 'predictions.0.textEmbedding');
 
         if (! is_array($values) || $values === []) {
             throw new VertexAiException('Respons embedding tidak berisi vektor yang dikenali.');

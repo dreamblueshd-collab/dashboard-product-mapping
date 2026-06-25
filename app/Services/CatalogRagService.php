@@ -51,7 +51,7 @@ class CatalogRagService
         $created = 0;
 
         foreach ($chunks as $i => $content) {
-            $embedding = $this->vertex->embed($content, 'RETRIEVAL_DOCUMENT');
+            $embedding = $this->vertex->embed($this->formatDocument($content), 'RETRIEVAL_DOCUMENT');
 
             CatalogChunk::create([
                 'import_batch_id' => $batch->id,
@@ -112,7 +112,7 @@ class CatalogRagService
      */
     public function retrieve(ImportBatch $batch, string $query, int $topK): array
     {
-        $queryVec = $this->vertex->embed($query, 'RETRIEVAL_QUERY');
+        $queryVec = $this->vertex->embed($this->formatQuery($query), 'RETRIEVAL_QUERY');
 
         $scored = [];
         CatalogChunk::where('import_batch_id', $batch->id)
@@ -134,6 +134,75 @@ class CatalogRagService
         usort($scored, fn ($a, $b) => $b['score'] <=> $a['score']);
 
         return array_slice($scored, 0, max(1, $topK));
+    }
+
+    /**
+     * Pencarian semantik bebas atas chunk katalog (untuk halaman Pencarian Semantik).
+     * Bila $batchId null, mencari di SEMUA katalog yang sudah di-index.
+     *
+     * @return array<int, array{content: string, score: float, batch_id: int, batch_name: ?string, chunk_index: int}>
+     */
+    public function search(string $query, ?int $batchId, int $topK = 15): array
+    {
+        $queryVec = $this->vertex->embed($this->formatQuery($query), 'RETRIEVAL_QUERY');
+
+        $scored = [];
+        $builder = CatalogChunk::query()->with('batch')->orderBy('id');
+        if ($batchId) {
+            $builder->where('import_batch_id', $batchId);
+        }
+
+        $builder->chunk(200, function ($rows) use (&$scored, $queryVec) {
+            foreach ($rows as $row) {
+                $vec = $row->embedding;
+                if (! is_array($vec) || $vec === []) {
+                    continue;
+                }
+                $scored[] = [
+                    'content' => $row->content,
+                    'batch_id' => $row->import_batch_id,
+                    'batch_name' => $row->batch?->original_filename,
+                    'chunk_index' => $row->chunk_index,
+                    'score' => $this->cosineSimilarity($queryVec, $vec),
+                ];
+            }
+        });
+
+        usort($scored, fn ($a, $b) => $b['score'] <=> $a['score']);
+
+        return array_slice($scored, 0, max(1, $topK));
+    }
+
+    /**
+     * Apakah model embedding aktif adalah gemini-embedding-2 (butuh task-instruction).
+     */
+    private function usesGeminiEmbedding2(): bool
+    {
+        return str_contains((string) config('vertex.embedding.model'), 'gemini-embedding-2');
+    }
+
+    /**
+     * Format teks DOKUMEN untuk embedding (task-instruction gemini-embedding-2).
+     */
+    private function formatDocument(string $content): string
+    {
+        if ($this->usesGeminiEmbedding2()) {
+            return 'title: none | text: '.$content;
+        }
+
+        return $content;
+    }
+
+    /**
+     * Format teks QUERY untuk embedding (task-instruction gemini-embedding-2).
+     */
+    private function formatQuery(string $query): string
+    {
+        if ($this->usesGeminiEmbedding2()) {
+            return 'task: search result | query: '.$query;
+        }
+
+        return $query;
     }
 
     /**
