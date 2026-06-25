@@ -79,7 +79,7 @@ dan `Konfirmasi Atribut untuk Simulasi.xlsx` (contoh atribut target hasil refine
 1. **Produk** → menu *Produk* → unggah `Data Product.xlsx` (kolom: Nama, Deskripsi, SKU, Harga).
 2. **Kendaraan** → menu *Kendaraan* → unggah `Data Vehicle.xlsx` (sheet pertama `All Data`).
 3. **Refine AI** → tombol *Refine* / *Deskripsi* per baris (sinkron) atau *Refine semua* (antrian).
-4. **Katalog PDF** → menu *Katalog PDF* → unggah PDF → klik *Jalankan Auto-Mapping*.
+4. **Katalog PDF** → menu *Katalog PDF* → unggah PDF → klik *Index RAG* (chunk + embedding) → *Auto-Mapping*.
 5. **Hasil** → menu *Product Mapping* untuk melihat relasi produk → kendaraan.
 
 > Aksi massal (refine semua / auto-mapping) diproses lewat antrian; pastikan

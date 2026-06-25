@@ -35,4 +35,9 @@ class ImportBatch extends Model
     {
         return $this->hasMany(Vehicle::class);
     }
+
+    public function chunks(): HasMany
+    {
+        return $this->hasMany(CatalogChunk::class, 'import_batch_id');
+    }
 }

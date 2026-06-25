@@ -62,8 +62,8 @@ FLUSH PRIVILEGES;
 php artisan migrate
 ```
 
-Tabel yang dibuat: `import_batches`, `products`, `vehicles`, `product_mappings`
-(plus tabel bawaan Laravel: `jobs`, `cache`, `sessions`, dll).
+Tabel yang dibuat: `import_batches`, `products`, `vehicles`, `product_mappings`,
+`catalog_chunks` (RAG) (plus tabel bawaan Laravel: `jobs`, `cache`, `sessions`, dll).
 
 ## 6. Menjalankan
 
@@ -94,8 +94,9 @@ Aksi AI per-baris (tombol *Refine* / *Deskripsi* pada satu item) berjalan
 
 | Gejala | Solusi |
 |---|---|
-| `VERTEX_API_KEY belum diisi` | Isi `VERTEX_API_KEY` di `.env`, lalu `php artisan config:clear`. |
-| Aksi massal tidak jalan | Pastikan `php artisan queue:work` berjalan. |
+| `VERTEX_API_KEY belum diisi` saat aksi per-baris | Isi `VERTEX_API_KEY` di `.env`, lalu `php artisan config:clear`. |
+| **Aksi massal gagal `VERTEX_API_KEY belum diisi` padahal per-baris bisa** | Worker antrian memuat `.env` hanya saat start. **Restart worker** setiap kali `.env` berubah: `php artisan queue:restart` lalu jalankan ulang `php artisan queue:work`. (Aksi per-baris jalan sinkron di web sehingga selalu baca `.env` terbaru.) |
+| Aksi massal tidak jalan sama sekali | Pastikan `php artisan queue:work` berjalan. |
 | Error koneksi DB | Cek `DB_*` di `.env` dan service MySQL aktif. |
 | Upload Excel gagal | Pastikan ekstensi `zip` & `gd` aktif (dibutuhkan Laravel Excel). |
 | Teks PDF kosong | PDF berbasis gambar/scan tidak punya teks; perlu OCR (di luar cakupan). |

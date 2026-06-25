@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\IndexCatalogJob;
 use App\Jobs\MapProductToVehiclesJob;
 use App\Models\ImportBatch;
 use App\Models\Product;
 use App\Services\AiRefinementService;
+use App\Services\CatalogRagService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -18,6 +20,7 @@ class CatalogController extends Controller
     public function index(): View
     {
         $batches = ImportBatch::where('type', ImportBatch::TYPE_CATALOG)
+            ->withCount('chunks')
             ->latest()
             ->get();
 
@@ -78,6 +81,23 @@ class CatalogController extends Controller
     }
 
     /**
+     * Index katalog untuk RAG (chunk + embedding).
+     */
+    public function indexRag(ImportBatch $batch, CatalogRagService $rag): RedirectResponse
+    {
+        if (! $rag->isConfigured()) {
+            return back()->with('error', 'VERTEX_API_KEY belum diisi di .env.');
+        }
+        if ($batch->type !== ImportBatch::TYPE_CATALOG) {
+            return back()->with('error', 'Batch ini bukan katalog.');
+        }
+
+        IndexCatalogJob::dispatch($batch->id);
+
+        return back()->with('success', 'Index RAG katalog diantrekan (chunk + embedding). Pastikan worker antrian berjalan: php artisan queue:work.');
+    }
+
+    /**
      * Jalankan auto-mapping: untuk setiap produk, minta AI menentukan kendaraan
      * yang kompatibel berdasarkan konteks katalog ini.
      */
@@ -91,10 +111,11 @@ class CatalogController extends Controller
         }
 
         $ids = Product::pluck('id');
-        foreach ($ids as $id) {
-            MapProductToVehiclesJob::dispatch($id, $batch->id);
+        $delay = (int) config('vertex.bulk_delay_seconds', 5);
+        foreach ($ids as $i => $id) {
+            MapProductToVehiclesJob::dispatch($id, $batch->id)->delay(now()->addSeconds($i * $delay));
         }
 
-        return back()->with('success', "Mengantrekan auto-mapping untuk {$ids->count()} produk. Jalankan 'php artisan queue:work'.");
+        return back()->with('success', "Mengantrekan auto-mapping untuk {$ids->count()} produk (jeda {$delay} detik antar proses). Pastikan worker antrian berjalan: php artisan queue:work.");
     }
 }

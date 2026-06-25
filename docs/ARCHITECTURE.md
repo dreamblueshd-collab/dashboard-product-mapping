@@ -67,6 +67,21 @@ Mengikuti struktur kolom pada file `Konfirmasi Atribut untuk Simulasi.xlsx`
 (gabungan atribut produk + aplikasi kendaraan), yang menjadi acuan "bentuk data
 yang dibutuhkan" setelah refine.
 
+### `catalog_chunks` (RAG)
+Potongan teks katalog PDF beserta embedding-nya untuk Retrieval-Augmented Generation.
+
+| Kolom | Keterangan |
+|---|---|
+| `import_batch_id` | FK ke katalog (`import_batches` bertipe `catalog`) |
+| `chunk_index` | urutan chunk |
+| `content` | teks chunk |
+| `embedding` | vektor embedding (JSON array float) |
+| `dimensions` | dimensi vektor |
+| `word_count` | jumlah kata chunk |
+
+> Cosine similarity dihitung **di PHP** karena MySQL/MariaDB 10.x belum memiliki
+> tipe `VECTOR` native. Untuk katalog skala puluhan halaman ini cepat & memadai.
+
 ## Komponen Kode
 
 - **Importers** (`app/Imports`): `ProductsImport`, `VehiclesImport` (+ `VehicleSheetImport` untuk sheet pertama).

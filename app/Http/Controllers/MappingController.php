@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\MappingsExport;
 use App\Models\ProductMapping;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class MappingController extends Controller
 {
@@ -26,5 +29,15 @@ class MappingController extends Controller
             'mappings' => $query->paginate(25)->withQueryString(),
             'filters' => ['q' => $search ?? ''],
         ]);
+    }
+
+    /**
+     * Download Product Mapping (Excel) - format "Konfirmasi Atribut untuk Simulasi".
+     */
+    public function export(Request $request): BinaryFileResponse
+    {
+        $filters = ['q' => $request->string('q')->toString()];
+
+        return Excel::download(new MappingsExport($filters), 'product-mapping-'.now()->format('Ymd-His').'.xlsx');
     }
 }

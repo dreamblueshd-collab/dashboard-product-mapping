@@ -27,8 +27,9 @@
                     <th class="px-4 py-2 font-medium">File</th>
                     <th class="px-4 py-2 font-medium">Status</th>
                     <th class="px-4 py-2 font-medium">Keterangan</th>
+                    <th class="px-4 py-2 font-medium">RAG Chunks</th>
                     <th class="px-4 py-2 font-medium">Waktu</th>
-                    <th class="px-4 py-2 font-medium text-right">Auto-Mapping</th>
+                    <th class="px-4 py-2 font-medium text-right">Aksi</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -36,30 +37,48 @@
                     <tr>
                         <td class="px-4 py-2 max-w-[220px] truncate" title="{{ $batch->original_filename }}">{{ $batch->original_filename }}</td>
                         <td class="px-4 py-2">@include('partials.status', ['status' => $batch->status])</td>
-                        <td class="px-4 py-2 text-slate-500 max-w-[320px]">{{ $batch->message }}</td>
+                        <td class="px-4 py-2 text-slate-500 max-w-[300px]">{{ $batch->message }}</td>
+                        <td class="px-4 py-2">
+                            @if($batch->chunks_count > 0)
+                                <span class="inline-flex items-center rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-700">{{ number_format($batch->chunks_count) }} chunk</span>
+                            @else
+                                <span class="text-xs text-slate-400">belum di-index</span>
+                            @endif
+                        </td>
                         <td class="px-4 py-2 text-slate-400">{{ $batch->created_at?->diffForHumans() }}</td>
                         <td class="px-4 py-2 text-right">
                             @if($batch->status === 'completed')
-                                <form action="{{ route('catalog.generateMappings', $batch) }}" method="POST">
-                                    @csrf
-                                    <button class="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
-                                        Jalankan Auto-Mapping
-                                    </button>
-                                </form>
+                                <div class="flex justify-end gap-1">
+                                    <form action="{{ route('catalog.indexRag', $batch) }}" method="POST">
+                                        @csrf
+                                        <button class="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700" title="Chunk + embedding untuk RAG">
+                                            {{ $batch->chunks_count > 0 ? 'Re-index RAG' : 'Index RAG' }}
+                                        </button>
+                                    </form>
+                                    <form action="{{ route('catalog.generateMappings', $batch) }}" method="POST">
+                                        @csrf
+                                        <button class="rounded-md bg-rose-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-rose-700">
+                                            Auto-Mapping
+                                        </button>
+                                    </form>
+                                </div>
                             @else
-                                <span class="text-xs text-slate-400">—</span>
+                                <span class="text-xs text-slate-400">&mdash;</span>
                             @endif
                         </td>
                     </tr>
                 @empty
-                    <tr><td colspan="5" class="px-4 py-8 text-center text-slate-400">Belum ada katalog. Upload PDF di atas.</td></tr>
+                    <tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">Belum ada katalog. Upload PDF di atas.</td></tr>
                 @endforelse
             </tbody>
         </table>
     </div>
 
     <p class="mt-3 text-xs text-slate-400">
-        Auto-mapping diproses via antrian (1 job per produk). Jalankan <code>php artisan queue:work</code>.
-        Hasil dapat dilihat di menu <a href="{{ route('mappings.index') }}" class="text-indigo-600 underline">Product Mapping</a>.
+        <strong>Alur RAG:</strong> setelah upload PDF, klik <strong>Index RAG</strong> (memecah teks jadi chunk + membuat embedding Gemini) lalu <strong>Auto-Mapping</strong>.
+        Saat mapping, sistem mengambil potongan katalog paling relevan per produk (retrieval cosine + rerank LLM) sebagai konteks.
+        Jika katalog belum di-index, mapping tetap jalan memakai potongan teks katalog penuh sebagai fallback.
+        Semua diproses via antrian &mdash; jalankan <code>php artisan queue:work</code>.
+        Hasil dilihat di <a href="{{ route('mappings.index') }}" class="text-indigo-600 underline">Product Mapping</a>.
     </p>
 @endsection

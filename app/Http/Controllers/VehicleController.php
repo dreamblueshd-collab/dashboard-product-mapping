@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\VehiclesExport;
 use App\Imports\VehiclesImport;
 use App\Jobs\RefineVehicleJob;
 use App\Models\ImportBatch;
@@ -11,6 +12,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Throwable;
 
 class VehicleController extends Controller
@@ -34,6 +36,16 @@ class VehicleController extends Controller
             'vehicles' => $query->paginate(20)->withQueryString(),
             'filters' => ['status' => $status ?? '', 'q' => $search ?? ''],
         ]);
+    }
+
+    public function export(Request $request): BinaryFileResponse
+    {
+        $filters = [
+            'status' => $request->string('status')->toString(),
+            'q' => $request->string('q')->toString(),
+        ];
+
+        return Excel::download(new VehiclesExport($filters), 'kendaraan-'.now()->format('Ymd-His').'.xlsx');
     }
 
     public function import(Request $request): RedirectResponse
@@ -98,14 +110,15 @@ class VehicleController extends Controller
 
         // Batasi default agar tidak mengantre ribuan baris sekaligus tanpa sengaja.
         $limit = (int) $request->integer('limit', 200);
-        $ids = Vehicle::where('refine_status', Vehicle::STATUS_RAW)
+        $ids = Vehicle::whereIn('refine_status', [Vehicle::STATUS_RAW, Vehicle::STATUS_FAILED])
             ->limit($limit)
             ->pluck('id');
 
-        foreach ($ids as $id) {
-            RefineVehicleJob::dispatch($id);
+        $delay = (int) config('vertex.bulk_delay_seconds', 5);
+        foreach ($ids as $i => $id) {
+            RefineVehicleJob::dispatch($id)->delay(now()->addSeconds($i * $delay));
         }
 
-        return back()->with('success', "Mengantrekan {$ids->count()} kendaraan untuk di-refine AI. Jalankan 'php artisan queue:work'.");
+        return back()->with('success', "Mengantrekan {$ids->count()} kendaraan untuk di-refine AI (jeda {$delay} detik antar proses). Pastikan worker antrian berjalan & sudah di-restart setelah mengisi .env (php artisan queue:restart, lalu php artisan queue:work).");
     }
 }

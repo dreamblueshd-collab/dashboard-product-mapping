@@ -27,8 +27,16 @@ class MapProductToVehiclesJob implements ShouldQueue
         }
 
         $context = '';
-        if ($batch->stored_path && Storage::exists($batch->stored_path)) {
-            $context = Storage::get($batch->stored_path);
+        $rag = app(\App\Services\CatalogRagService::class);
+        try {
+            // Gunakan konteks RAG (retrieval + rerank) bila katalog sudah di-index;
+            // bila belum, service otomatis fallback ke potongan teks katalog penuh.
+            $context = $rag->buildContextForProduct($batch, $product);
+        } catch (\Throwable $e) {
+            // Fallback terakhir: baca teks mentah dari storage.
+            if ($batch->stored_path && Storage::exists($batch->stored_path)) {
+                $context = Storage::get($batch->stored_path);
+            }
         }
 
         $ai->mapProductToVehicles($product, $context, $batch->id);
