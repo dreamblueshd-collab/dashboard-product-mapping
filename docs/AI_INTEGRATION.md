@@ -98,28 +98,26 @@ Produk -> query (nama+spesifikasi) -> EMBED query -> RETRIEVAL top-K (cosine di 
 
 Embedding mendukung **2 provider** (config `vertex.embedding.provider`):
 
-**1. `vertex` (default) — `gemini-embedding-2`, MULTIMODAL.** Per [dok resmi Google](https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/embeddings/get-multimodal-embeddings),
-butuh **project + location** dan **OAuth Bearer token** (bukan API key):
+**1. `gemini_api` (default) — Google AI Studio / Gemini Developer API, pakai API KEY.**
+`gemini-embedding-2` tersedia di Google AI Studio, tanpa perlu OAuth/project:
 
 ```
-POST https://{ENDPOINT}/{VERSION}/projects/{PROJECT}/locations/{LOCATION}/publishers/google/models/gemini-embedding-2:embedContent
-Authorization: Bearer <access_token>
+POST https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-2:embedContent?key=API_KEY
 ```
 Body:
 ```json
-{ "content": { "parts": [{ "text": "title: none | text: ..." }] }, "output_dimensionality": 1536 }
+{
+  "model": "models/gemini-embedding-2",
+  "content": { "parts": [{ "text": "..." }] },
+  "outputDimensionality": 1536,
+  "taskType": "RETRIEVAL_DOCUMENT"
+}
 ```
+API key dibuat di https://aistudio.google.com/apikey. Instruksi tugas dikirim
+lewat field `taskType` (RETRIEVAL_DOCUMENT untuk dokumen, RETRIEVAL_QUERY untuk kueri).
 
-**2. `gemini_api` — `gemini-embedding-001`, teks saja, via API key** (`generativelanguage.googleapis.com`):
-```
-POST https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=API_KEY
-```
-
-> Catatan: Vertex AI **express mode** (`aiplatform.*.rep.googleapis.com` + API key) **tidak**
-> punya `embedContent`. Untuk API key murni, pakai provider `gemini_api`.
-
-**Task instruction (gemini-embedding-2):** dokumen diformat `title: none | text: {konten}`,
-query diformat `task: search result | query: {kueri}` (otomatis di `CatalogRagService`).
+**2. `vertex` — Vertex AI (opsional).** Butuh project + location + OAuth Bearer token;
+instruksi tugas disisipkan sebagai prefix teks (`title: none | text: ...`, `task: search result | query: ...`).
 
 Parsing respons fleksibel: `embedding.values`, `embeddings[0].values`, `predictions[0].textEmbedding`.
 
@@ -127,17 +125,15 @@ Parsing respons fleksibel: `embedding.values`, `embeddings[0].values`, `predicti
 
 | Variabel | Default | Keterangan |
 |---|---|---|
-| `VERTEX_EMBED_PROVIDER` | `vertex` | `vertex` (gemini-embedding-2) atau `gemini_api` |
-| `VERTEX_EMBED_ENDPOINT` | `aiplatform.us.rep.googleapis.com` | host embedding |
-| `VERTEX_EMBED_API_VERSION` | `v1` | versi API |
-| `VERTEX_EMBED_LOCATION` | `us` | region (provider vertex) |
-| `VERTEX_EMBED_PROJECT_ID` | _(kosong)_ | project id (provider vertex) |
-| `VERTEX_EMBED_AUTH` | `bearer` | `bearer` (OAuth) atau `api_key` |
-| `VERTEX_EMBED_ACCESS_TOKEN` | _(kosong)_ | OAuth token (`gcloud auth print-access-token`) |
-| `VERTEX_EMBED_API_KEY` | _(kosong)_ | API key (mode api_key); kosong = pakai `VERTEX_API_KEY` |
+| `VERTEX_EMBED_PROVIDER` | `gemini_api` | `gemini_api` (Google AI Studio) atau `vertex` |
+| `VERTEX_EMBED_ENDPOINT` | `generativelanguage.googleapis.com` | host embedding |
+| `VERTEX_EMBED_API_VERSION` | `v1beta` | versi API |
+| `VERTEX_EMBED_AUTH` | `api_key` | `api_key` atau `bearer` (provider vertex) |
+| `VERTEX_EMBED_API_KEY` | _(kosong)_ | API key Google AI Studio; kosong = pakai `VERTEX_API_KEY` |
 | `VERTEX_EMBED_MODEL` | `gemini-embedding-2` | model embedding |
-| `VERTEX_EMBED_DIMENSIONS` | `1536` | dimensi (128..3072 utk gemini-embedding-2) |
+| `VERTEX_EMBED_DIMENSIONS` | `1536` | dimensi (128..3072) |
 | `VERTEX_EMBED_DELAY_MS` | `250` | jeda antar panggilan embedding saat index |
+| `VERTEX_EMBED_PROJECT_ID` / `_LOCATION` / `_ACCESS_TOKEN` | _(kosong)_ | hanya untuk provider `vertex` |
 | `VERTEX_RAG_CHUNK_WORDS` | `220` | ukuran chunk (kata) |
 | `VERTEX_RAG_CHUNK_OVERLAP` | `40` | overlap antar chunk (kata) |
 | `VERTEX_RAG_TOP_K` | `12` | kandidat hasil retrieval (cosine) |

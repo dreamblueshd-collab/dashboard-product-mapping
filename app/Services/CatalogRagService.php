@@ -174,11 +174,16 @@ class CatalogRagService
     }
 
     /**
-     * Apakah model embedding aktif adalah gemini-embedding-2 (butuh task-instruction).
+     * Apakah perlu menyisipkan task-instruction sebagai TEKS.
+     *
+     * Hanya untuk gemini-embedding-2 via provider 'vertex'. Untuk provider
+     * 'gemini_api' (Google AI Studio), instruksi tugas dikirim lewat field
+     * taskType pada request (bukan prefix teks).
      */
     private function usesGeminiEmbedding2(): bool
     {
-        return str_contains((string) config('vertex.embedding.model'), 'gemini-embedding-2');
+        return config('vertex.embedding.provider') === 'vertex'
+            && str_contains((string) config('vertex.embedding.model'), 'gemini-embedding-2');
     }
 
     /**
