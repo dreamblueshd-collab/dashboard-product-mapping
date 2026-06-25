@@ -23,6 +23,7 @@
                     'vehicles.index' => 'Kendaraan',
                     'mappings.index' => 'Mapping',
                     'catalog.index' => 'Katalog PDF',
+                    'search.index' => 'Pencarian',
                 ])
                 @foreach($nav as $route => $label)
                     <a href="{{ route($route) }}"

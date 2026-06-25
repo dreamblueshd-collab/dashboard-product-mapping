@@ -4,6 +4,7 @@ use App\Http\Controllers\CatalogController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MappingController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\SemanticSearchController;
 use App\Http\Controllers\VehicleController;
 use Illuminate\Support\Facades\Route;
 
@@ -41,3 +42,6 @@ Route::prefix('catalog')->name('catalog.')->group(function () {
 // ---- Product Mapping ----
 Route::get('/mappings', [MappingController::class, 'index'])->name('mappings.index');
 Route::get('/mappings/export', [MappingController::class, 'export'])->name('mappings.export');
+
+// ---- Pencarian Semantik (RAG) ----
+Route::get('/search', [SemanticSearchController::class, 'index'])->name('search.index');
