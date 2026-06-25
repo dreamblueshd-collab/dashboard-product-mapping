@@ -26,6 +26,14 @@ class VertexAiService
     }
 
     /**
+     * Apakah API key untuk embedding sudah tersedia (embed key atau key utama).
+     */
+    public function isEmbeddingConfigured(): bool
+    {
+        return ! empty(config('vertex.embedding.api_key')) || ! empty(config('vertex.api_key'));
+    }
+
+    /**
      * Hasilkan embedding vektor untuk sebuah teks.
      *
      * Memanggil endpoint :embedContent dengan API key. Parsing dibuat fleksibel
@@ -36,14 +44,16 @@ class VertexAiService
      */
     public function embed(string $text, ?string $taskType = null): array
     {
-        if (! $this->isConfigured()) {
-            throw new VertexAiException('VERTEX_API_KEY belum diisi di .env. Fitur embedding tidak dapat digunakan.');
+        $apiKey = config('vertex.embedding.api_key') ?: config('vertex.api_key');
+        if (empty($apiKey)) {
+            throw new VertexAiException('API key embedding belum diisi (VERTEX_EMBED_API_KEY atau VERTEX_API_KEY) di .env.');
         }
 
         $model = config('vertex.embedding.model');
 
+        // Format Gemini API (generativelanguage): field model = "models/{model}".
         $payload = [
-            'model' => 'publishers/google/models/'.$model,
+            'model' => 'models/'.$model,
             'content' => [
                 'parts' => [['text' => $text]],
             ],
@@ -57,17 +67,21 @@ class VertexAiService
             $payload['taskType'] = $taskType;
         }
 
+        // Catatan: endpoint Vertex AI "express mode" (aiplatform.*.rep.googleapis.com)
+        // TIDAK menyediakan embedContent/predict. Embedding via API key tersedia di
+        // Gemini API (generativelanguage.googleapis.com), sehingga host/versi embedding
+        // dikonfigurasi terpisah dari generateContent.
         $url = sprintf(
-            'https://%s/%s/publishers/google/models/%s:%s',
-            config('vertex.endpoint'),
-            config('vertex.api_version'),
+            'https://%s/%s/models/%s:%s',
+            config('vertex.embedding.endpoint'),
+            config('vertex.embedding.api_version'),
             $model,
             config('vertex.embedding.api'),
         );
 
         $response = Http::timeout((int) config('vertex.timeout', 180))
             ->withHeaders(['Content-Type' => 'application/json'])
-            ->withQueryParameters(['key' => config('vertex.api_key')])
+            ->withQueryParameters(['key' => $apiKey])
             ->post($url, $payload);
 
         if ($response->failed()) {
