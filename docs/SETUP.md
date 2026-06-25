@@ -63,7 +63,8 @@ php artisan migrate
 ```
 
 Tabel yang dibuat: `import_batches`, `products`, `vehicles`, `product_mappings`,
-`catalog_chunks` (RAG) (plus tabel bawaan Laravel: `jobs`, `cache`, `sessions`, dll).
+`catalog_chunks` (RAG), `chat_conversations` & `chat_messages` (Asisten AI)
+(plus tabel bawaan Laravel: `jobs`, `cache`, `sessions`, dll).
 
 ## 6. Menjalankan
 

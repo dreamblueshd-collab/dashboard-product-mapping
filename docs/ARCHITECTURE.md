@@ -82,6 +82,17 @@ Potongan teks katalog PDF beserta embedding-nya untuk Retrieval-Augmented Genera
 > Cosine similarity dihitung **di PHP** karena MySQL/MariaDB 10.x belum memiliki
 > tipe `VECTOR` native. Untuk katalog skala puluhan halaman ini cepat & memadai.
 
+### `chat_conversations` & `chat_messages` (Asisten AI)
+Menyimpan riwayat percakapan Asisten AI (RAG chat).
+
+| Tabel | Kolom penting |
+|---|---|
+| `chat_conversations` | `uuid` (dipakai di URL/session), `title` (dari pertanyaan pertama) |
+| `chat_messages` | `chat_conversation_id`, `role` (`user`/`assistant`), `content`, `sources` (JSON konteks) |
+
+Jawaban asisten dirender dari Markdown ke HTML aman via `App\Support\Markdown`
+(CommonMark, `html_input=escape`).
+
 ## Komponen Kode
 
 - **Importers** (`app/Imports`): `ProductsImport`, `VehiclesImport` (+ `VehicleSheetImport` untuk sheet pertama).
