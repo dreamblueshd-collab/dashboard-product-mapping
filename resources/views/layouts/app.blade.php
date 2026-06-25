@@ -24,6 +24,7 @@
                     'mappings.index' => 'Mapping',
                     'catalog.index' => 'Katalog PDF',
                     'search.index' => 'Pencarian',
+                    'assistant.index' => 'Asisten AI',
                 ])
                 @foreach($nav as $route => $label)
                     <a href="{{ route($route) }}"

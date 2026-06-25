@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\CatalogController;
+use App\Http\Controllers\AssistantController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\MappingController;
 use App\Http\Controllers\ProductController;
@@ -45,3 +46,10 @@ Route::get('/mappings/export', [MappingController::class, 'export'])->name('mapp
 
 // ---- Pencarian Semantik (RAG) ----
 Route::get('/search', [SemanticSearchController::class, 'index'])->name('search.index');
+
+// ---- Asisten AI (RAG chat) ----
+Route::prefix('assistant')->name('assistant.')->group(function () {
+    Route::get('/', [AssistantController::class, 'index'])->name('index');
+    Route::post('/ask', [AssistantController::class, 'ask'])->name('ask');
+    Route::post('/reset', [AssistantController::class, 'reset'])->name('reset');
+});
